@@ -1,0 +1,84 @@
+:root {
+    --bg-color: #f4f6f8;
+    --sidebar-bg: #ffffff;
+    --text-main: #333333;
+    --text-muted: #666666;
+    --primary: #4361ee;
+    --primary-hover: #3a53d0;
+    --border: #e0e0e0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+body { display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-main); }
+
+/* Sidebar */
+.sidebar { width: 300px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; transition: 0.3s; }
+.sidebar-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.mobile-close, .mobile-toggle { display: none; background: none; border: none; font-size: 1.2rem; cursor: pointer; }
+.search-box { padding: 15px; border-bottom: 1px solid var(--border); }
+.search-box input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 5px; outline: none; }
+.sidebar-menu { flex: 1; overflow-y: auto; padding: 10px 0; }
+.sidebar-footer { padding: 15px; border-top: 1px solid var(--border); background: var(--sidebar-bg); }
+
+/* Main Content */
+.main-content { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.top-bar { height: 60px; background: #fff; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+.save-status { font-size: 0.9rem; color: var(--text-muted); font-weight: bold; }
+.content-area { flex: 1; overflow-y: auto; padding: 20px; background: var(--bg-color); }
+
+/* Buttons & Lists */
+.btn-primary { width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
+.btn-primary:hover { background: var(--primary-hover); }
+.backup-options { display: flex; gap: 10px; }
+.backup-options button, .btn-import { flex: 1; padding: 8px; font-size: 0.85rem; border: 1px solid var(--border); background: white; border-radius: 5px; cursor: pointer; text-align: center; color: var(--text-main); }
+.backup-options button:hover, .btn-import:hover { background: #f0f0f0; }
+
+/* List Items (Books, Chapters, Pages) */
+.list-item { padding: 10px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f9f9f9; }
+.list-item:hover { background: #f4f6f8; }
+.list-item.active { background: #eef2ff; border-left: 4px solid var(--primary); }
+.actions { display: flex; gap: 10px; font-size: 0.9rem; color: var(--text-muted); }
+.actions i { cursor: pointer; }
+.actions i:hover { color: var(--primary); }
+
+/* Editor & Views */
+.welcome-screen { text-align: center; margin-top: 20%; color: var(--text-muted); }
+.view-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.view-header h2 { font-size: 1.5rem; }
+.btn-add { padding: 8px 15px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; }
+.grid-list { display: flex; flex-direction: column; gap: 10px; }
+.grid-card { background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border); display: flex; justify-content: space-between; cursor: pointer; }
+.grid-card:hover { border-color: var(--primary); }
+
+/* Quill Editor Overrides */
+#editor-container { height: calc(100vh - 200px); background: white; border-radius: 0 0 8px 8px; font-size: 16px; }
+.ql-toolbar { background: white; border-radius: 8px 8px 0 0; }
+.ql-editor { font-family: inherit; line-height: 1.6; }
+
+/* Search Results */
+.search-result-item { background: white; padding: 15px; margin-bottom: 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--border); }
+.search-result-item:hover { border-color: var(--primary); }
+.search-path { font-size: 0.8rem; color: var(--primary); margin-bottom: 5px; }
+
+/* Responsive Mobile */
+@media (max-width: 768px) {
+    .sidebar { position: fixed; left: -300px; height: 100%; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+    .sidebar.open { left: 0; }
+    .mobile-close, .mobile-toggle { display: block; }
+    .breadcrumb { font-size: 0.9rem; margin-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+}
+
+/* Quill Editor Font Size Fix */
+.ql-editor p, 
+.ql-editor li, 
+.ql-editor h1, 
+.ql-editor h2 {
+    font-size: 17px !important; /* आप अपनी पसंद से 16, 17 या 18 कर सकते हैं */
+    line-height: 1.8 !important;
+}
+
+/* बुलेट पॉइंट्स के बीच में थोड़ी जगह देने के लिए */
+.ql-editor li {
+    margin-bottom: 8px;
+}
