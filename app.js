@@ -1,7 +1,7 @@
 // ==========================================
 // 1. SUPABASE SETUP (Database Configuration)
 // ==========================================
-const SUPABASE_URL = 'https://qnjliiowzdkqrpwavnj.supabase.co';
+const SUPABASE_URL = 'https://qnjlijowzdkqrpwavnj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_QkFJZLtolSb8SNIUhqyLbA_jLB1DarC';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
