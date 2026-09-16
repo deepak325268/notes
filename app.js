@@ -169,6 +169,7 @@ function openChapter(chapterId) {
     updateBreadcrumb(`📘 ${book.title} > 📑 ${chapter.title}`);
     renderSidebar();
 
+    // 🔴 यहाँ "🛠️ Fix PDF Text" बटन जोड़ा गया है
     document.getElementById('contentArea').innerHTML = `
         <div style="margin-bottom: 15px;">
             <button onclick="openBook('${currentBookId}')" style="padding:8px 15px; cursor:pointer; background:#fff; border:1px solid #ccc; border-radius:5px; font-weight:bold;">⬅ Back to Book</button>
@@ -178,6 +179,9 @@ function openChapter(chapterId) {
             <span class="ql-formats"><button class="ql-header" value="1"></button><button class="ql-header" value="2"></button></span>
             <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
             <span class="ql-formats"><button class="ql-clean"></button></span>
+            <span class="ql-formats">
+                <button type="button" onclick="fixPDFText()" style="width:auto; padding:0 10px; font-weight:bold; color:#4361ee;" title="PDF के टूटे पैराग्राफ को सही करें">🛠️ Fix PDF Text</button>
+            </span>
         </div>
         <div id="editor-container"></div>
     `;
@@ -194,6 +198,32 @@ function openChapter(chapterId) {
         chapter.content = editor.root.innerHTML;
         triggerAutoSave();
     });
+}
+
+// ==========================================
+// 5. NEW FEATURE: FIX PDF TEXT 🛠️
+// ==========================================
+function fixPDFText() {
+    if (!editor) return;
+    
+    const range = editor.getSelection();
+    if (range && range.length > 0) {
+        let text = editor.getText(range.index, range.length);
+        
+        // मैजिक लॉजिक: असली पैराग्राफ को बचाकर सिर्फ फालतू Enter हटाता है
+        text = text.replace(/\n\n/g, '||PARAGRAPH||'); 
+        text = text.replace(/\n/g, ' '); 
+        text = text.replace(/\|\|PARAGRAPH\|\|/g, '\n\n'); 
+        text = text.replace(/ +/g, ' '); 
+        
+        editor.deleteText(range.index, range.length);
+        editor.insertText(range.index, text);
+        editor.setSelection(range.index, text.length);
+        
+        triggerAutoSave();
+    } else {
+        alert("❌ पहले माउस से उस टूटे हुए टेक्स्ट को Select करें जिसे ठीक करना है, फिर इस बटन को दबाएं!");
+    }
 }
 
 // --- DELETING ---
