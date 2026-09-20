@@ -29,15 +29,21 @@
         </div>
 
         <div class="sidebar-footer">
-            <button onclick="addNewCategory()" class="btn-primary" style="background-color: #2b2d42;"><i class="fas fa-folder-plus"></i> Add Category / Subject</button>
-            <div class="backup-options">
-                <button onclick="exportBackup()"><i class="fas fa-download"></i> Export</button>
-                <label for="importFile" class="btn-import"><i class="fas fa-upload"></i> Import</label>
-                <input type="file" id="importFile" accept=".json" onchange="importBackup(event)" style="display: none;">
+            <!-- 🔒 Lock/Unlock Button -->
+            <button id="lockBtn" onclick="toggleLock()" style="width:100%; margin-bottom:15px; padding:10px; background:#fff; border:2px solid #ccc; border-radius:5px; cursor:pointer; font-weight:bold; font-size:15px;">🔒 Unlock to Edit</button>
+
+            <!-- Admin Controls (Hidden by default) -->
+            <div id="adminControls" style="display:none;">
+                <button onclick="addNewCategory()" class="btn-primary" style="background-color: #2b2d42;"><i class="fas fa-folder-plus"></i> Add Category / Subject</button>
+                <div class="backup-options">
+                    <button onclick="exportBackup()"><i class="fas fa-download"></i> Export</button>
+                    <label for="importFile" class="btn-import"><i class="fas fa-upload"></i> Import</label>
+                    <input type="file" id="importFile" accept=".json" onchange="importBackup(event)" style="display: none;">
+                </div>
+                <button onclick="showAutoBackups()" style="width:100%; margin-top:10px; padding:8px; background:#eef2ff; border:1px solid #4361ee; color:#4361ee; border-radius:5px; cursor:pointer; font-weight:bold;"><i class="fas fa-history"></i> Cloud History</button>
             </div>
-            <button onclick="showAutoBackups()" style="width:100%; margin-top:10px; padding:8px; background:#eef2ff; border:1px solid #4361ee; color:#4361ee; border-radius:5px; cursor:pointer; font-weight:bold;"><i class="fas fa-history"></i> Cloud History</button>
         </div>
-    </div> <!-- 👈 यही वाला </div> डिलीट हो गया था! -->
+    </div>
 
     <!-- Main Content Area -->
     <div class="main-content">
@@ -53,7 +59,7 @@
         <div id="contentArea" class="content-area">
             <div class="welcome-screen">
                 <h2>Welcome to your Book Notes</h2>
-                <p>Click "+ Add Category" in the sidebar to get started.</p>
+                <p>Select a book from the sidebar to read notes.</p>
             </div>
         </div>
     </div>
