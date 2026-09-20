@@ -110,22 +110,33 @@ async function triggerAutoSave() {
             appData.lastUpdated = new Date().toISOString();
             localStorage.setItem('bookNotesBackup', JSON.stringify(appData));
             
+            // 1. मेन नोट्स सेव करें
             const { error } = await supabaseClient.from('notes_db').upsert({ id: 1, data: appData });
             if (error) throw error;
             document.getElementById('saveStatus').innerText = "☁️ Saved";
 
+            // 2. डेली बैकअप और ऑटो-क्लीनअप (Auto-Cleanup)
             const today = new Date().toISOString().split('T')[0]; 
             const lastBackup = localStorage.getItem('lastCloudBackupDate');
             if (lastBackup !== today && appData.categories.length > 0) {
+                // आज का बैकअप सेव करें
                 const { error: backupError } = await supabaseClient.from('auto_backups').upsert({ backup_date: today, data: appData });
-                if (!backupError) localStorage.setItem('lastCloudBackupDate', today);
+                if (!backupError) {
+                    localStorage.setItem('lastCloudBackupDate', today);
+                    
+                    // 🧹 स्मार्ट सफाई: सिर्फ 15 दिन का बैकअप रखें, पुराने अपने आप डिलीट करें
+                    const { data: allBackups } = await supabaseClient.from('auto_backups').select('backup_date').order('backup_date', { ascending: false });
+                    if (allBackups && allBackups.length > 15) {
+                        const oldBackupsToDelete = allBackups.slice(15).map(b => b.backup_date);
+                        await supabaseClient.from('auto_backups').delete().in('backup_date', oldBackupsToDelete);
+                    }
+                }
             }
         } catch (err) {
             document.getElementById('saveStatus').innerText = "⚠️ Save Failed";
         }
     }, 1500);
 }
-
 // ==========================================
 // 5. UI RENDERING & NAVIGATION
 // ==========================================
