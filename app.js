@@ -31,7 +31,7 @@ async function loadDataFromCloud() {
         
         if (data && data.data) {
             appData = data.data;
-            migrateOldData(); // पुरानी किताबों को बचाने के लिए
+            migrateOldData(); 
         }
         document.getElementById('saveStatus').innerText = "☁️ Synced";
     } catch (err) {
@@ -44,7 +44,6 @@ async function loadDataFromCloud() {
     }
 }
 
-// यह फंक्शन पुराने सिस्टम की किताबों को एक "Old Books" फोल्डर में डाल देगा
 function migrateOldData() {
     if (!appData.categories) {
         appData.categories = [];
@@ -94,7 +93,7 @@ function renderSidebar() {
     list.innerHTML = '';
     
     (appData.categories || []).forEach(category => {
-        // 1. CATEGORY LEVEL (Subject)
+        // 1. CATEGORY LEVEL
         const catDiv = document.createElement('div');
         catDiv.className = `list-item ${currentCategoryId === category.id && !currentBookId ? 'active' : ''}`;
         catDiv.style.backgroundColor = "#eef2ff";
@@ -103,6 +102,7 @@ function renderSidebar() {
             <span onclick="openCategory('${category.id}')" style="font-weight:bold; flex:1; color:#2b2d42;">📁 ${category.title}</span>
             <div class="actions">
                 <i class="fas fa-plus" onclick="addBookTo('${category.id}', event)" title="Add Book"></i>
+                <i class="fas fa-edit" onclick="renameCategory('${category.id}', event)" title="Rename Subject"></i>
                 <i class="fas fa-trash" onclick="deleteCategory('${category.id}', event)" title="Delete Subject"></i>
             </div>
         `;
@@ -113,7 +113,7 @@ function renderSidebar() {
             booksContainer.style.borderLeft = "2px solid #ccc";
             booksContainer.style.marginLeft = "10px";
             
-            // 2. BOOK LEVEL (Class)
+            // 2. BOOK LEVEL
             (category.books || []).forEach(book => {
                 const bookDiv = document.createElement('div');
                 bookDiv.className = `list-item ${currentBookId === book.id && !currentChapterId ? 'active' : ''}`;
@@ -122,12 +122,13 @@ function renderSidebar() {
                     <span onclick="openBook('${category.id}', '${book.id}')" style="font-weight:bold; flex:1; color:#4361ee;">📚 ${book.title}</span>
                     <div class="actions">
                         <i class="fas fa-plus" onclick="addChapterTo('${category.id}', '${book.id}', event)" title="Add Chapter"></i>
+                        <i class="fas fa-edit" onclick="renameBook('${category.id}', '${book.id}', event)" title="Rename Book"></i>
                         <i class="fas fa-trash" onclick="deleteBook('${category.id}', '${book.id}', event)" title="Delete Book"></i>
                     </div>
                 `;
                 booksContainer.appendChild(bookDiv);
 
-                // 3. CHAPTER LEVEL (Notes)
+                // 3. CHAPTER LEVEL
                 if (currentBookId === book.id) {
                     const chapContainer = document.createElement('div');
                     chapContainer.style.borderLeft = "2px solid #4361ee";
@@ -140,6 +141,7 @@ function renderSidebar() {
                         chapDiv.innerHTML = `
                             <span onclick="openChapter('${category.id}', '${book.id}', '${chapter.id}')" style="font-size:0.9rem; flex:1; color:#444;">📑 ${chapter.title}</span>
                             <div class="actions">
+                                <i class="fas fa-edit" onclick="renameChapter('${category.id}', '${book.id}', '${chapter.id}', event)" title="Rename Chapter"></i>
                                 <i class="fas fa-trash" onclick="deleteChapter('${category.id}', '${book.id}', '${chapter.id}', event)"></i>
                             </div>
                         `;
@@ -189,6 +191,45 @@ function addChapterTo(catId, bId, e) {
     triggerAutoSave(); openBook(catId, bId); 
 }
 
+// --- RENAMING DATA (NEW FEATURE) ✏️ ---
+function renameCategory(id, e) {
+    if(e) e.stopPropagation();
+    const cat = appData.categories.find(c => c.id === id);
+    const newTitle = prompt("Rename Category / Subject:", cat.title);
+    if (newTitle && newTitle.trim() !== "") {
+        cat.title = newTitle.trim();
+        triggerAutoSave(); renderSidebar();
+        if (currentCategoryId === id && !currentBookId) openCategory(id);
+    }
+}
+
+function renameBook(catId, bookId, e) {
+    if(e) e.stopPropagation();
+    const cat = appData.categories.find(c => c.id === catId);
+    const book = cat.books.find(b => b.id === bookId);
+    const newTitle = prompt("Rename Book:", book.title);
+    if (newTitle && newTitle.trim() !== "") {
+        book.title = newTitle.trim();
+        triggerAutoSave(); renderSidebar();
+        if (currentBookId === bookId && !currentChapterId) openBook(catId, bookId);
+        else if (currentCategoryId === catId && !currentBookId) openCategory(catId);
+    }
+}
+
+function renameChapter(catId, bookId, chapId, e) {
+    if(e) e.stopPropagation();
+    const cat = appData.categories.find(c => c.id === catId);
+    const book = cat.books.find(b => b.id === bookId);
+    const chapter = book.chapters.find(c => c.id === chapId);
+    const newTitle = prompt("Rename Chapter:", chapter.title);
+    if (newTitle && newTitle.trim() !== "") {
+        chapter.title = newTitle.trim();
+        triggerAutoSave(); renderSidebar();
+        if (currentChapterId === chapId) openChapter(catId, bookId, chapId);
+        else if (currentBookId === bookId && !currentChapterId) openBook(catId, bookId);
+    }
+}
+
 // --- OPENING VIEWS ---
 function openCategory(catId) {
     currentCategoryId = catId; currentBookId = null; currentChapterId = null;
@@ -203,7 +244,10 @@ function openCategory(catId) {
     (cat.books || []).forEach(b => {
         html += `<div class="grid-card" onclick="openBook('${cat.id}', '${b.id}')">
             <span>📚 ${b.title}</span>
-            <div class="actions"><i class="fas fa-trash" onclick="deleteBook('${cat.id}', '${b.id}', event)"></i></div>
+            <div class="actions">
+                <i class="fas fa-edit" onclick="renameBook('${cat.id}', '${b.id}', event)"></i>
+                <i class="fas fa-trash" onclick="deleteBook('${cat.id}', '${b.id}', event)"></i>
+            </div>
         </div>`;
     });
     html += `</div>`;
@@ -226,7 +270,10 @@ function openBook(catId, bookId) {
     (book.chapters || []).forEach(ch => {
         html += `<div class="grid-card" onclick="openChapter('${cat.id}', '${book.id}', '${ch.id}')">
             <span>📑 ${ch.title}</span>
-            <div class="actions"><i class="fas fa-trash" onclick="deleteChapter('${cat.id}', '${book.id}', '${ch.id}', event)"></i></div>
+            <div class="actions">
+                <i class="fas fa-edit" onclick="renameChapter('${cat.id}', '${book.id}', '${ch.id}', event)"></i>
+                <i class="fas fa-trash" onclick="deleteChapter('${cat.id}', '${book.id}', '${ch.id}', event)"></i>
+            </div>
         </div>`;
     });
     html += `</div>`;
