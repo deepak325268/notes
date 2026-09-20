@@ -8,7 +8,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ==========================================
 // 2. SECURITY PIN (ENCRYPTED) 🔒
 // ==========================================
-const SECRET_HASH = "131"; // "1234" का एन्क्रिप्टेड कोड
+const SECRET_HASH = "48719"; // "1234" का एन्क्रिप्टेड कोड
 let isUnlocked = localStorage.getItem('notes_unlocked') === 'true';
 
 function encryptPIN(pin) {
