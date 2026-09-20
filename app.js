@@ -6,7 +6,40 @@ const SUPABASE_KEY = 'sb_publishable_QkFJZLtolSb8SNIUhqyLbA_jLB1DarC';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ==========================================
-// 2. STATE MANAGEMENT (Category -> Book -> Chapter)
+// 2. SECURITY PIN (ENCRYPTED) 🔒
+// ==========================================
+const SECRET_HASH = "1509442"; // "1234" का एन्क्रिप्टेड कोड
+let isUnlocked = localStorage.getItem('notes_unlocked') === 'true';
+
+function encryptPIN(pin) {
+    let hash = 0;
+    for (let i = 0; i < pin.length; i++) {
+        let char = pin.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; 
+    }
+    return hash.toString();
+}
+
+function toggleLock() {
+    if (isUnlocked) {
+        localStorage.setItem('notes_unlocked', 'false');
+        location.reload(); 
+    } else {
+        const pin = prompt("Enter Secret PIN to Unlock Editing:");
+        if (pin !== null) {
+            if (encryptPIN(pin) === SECRET_HASH) {
+                localStorage.setItem('notes_unlocked', 'true');
+                location.reload(); 
+            } else {
+                alert("❌ Wrong PIN! You cannot edit.");
+            }
+        }
+    }
+}
+
+// ==========================================
+// 3. STATE MANAGEMENT
 // ==========================================
 let appData = { categories: [] };
 let currentCategoryId = null;
@@ -16,10 +49,19 @@ let editor = null;
 let saveTimeout = null;
 
 // ==========================================
-// 3. INITIALIZATION & DATA LOADING
+// 4. INITIALIZATION & DATA LOADING
 // ==========================================
 window.onload = async () => {
     document.getElementById('saveStatus').innerText = "☁️ Loading...";
+    
+    // अगर अनलॉक है तो ही Admin बटन दिखेंगे
+    if (isUnlocked) {
+        document.getElementById('adminControls').style.display = 'block';
+        document.getElementById('lockBtn').innerHTML = '🔓 Lock Editing';
+        document.getElementById('lockBtn').style.background = '#eef2ff';
+        document.getElementById('lockBtn').style.borderColor = '#4361ee';
+    }
+
     await loadDataFromCloud();
     renderSidebar();
 };
@@ -60,6 +102,7 @@ function migrateOldData() {
 }
 
 async function triggerAutoSave() {
+    if (!isUnlocked) return; // लॉक होने पर सेव नहीं होगा
     document.getElementById('saveStatus').innerText = "⏳ Saving...";
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(async () => {
@@ -84,7 +127,7 @@ async function triggerAutoSave() {
 }
 
 // ==========================================
-// 4. UI RENDERING & NAVIGATION
+// 5. UI RENDERING & NAVIGATION
 // ==========================================
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
@@ -93,19 +136,19 @@ function renderSidebar() {
     list.innerHTML = '';
     
     (appData.categories || []).forEach(category => {
-        // 1. CATEGORY LEVEL
         const catDiv = document.createElement('div');
         catDiv.className = `list-item ${currentCategoryId === category.id && !currentBookId ? 'active' : ''}`;
         catDiv.style.backgroundColor = "#eef2ff";
         catDiv.style.borderBottom = "1px solid #ccc";
-        catDiv.innerHTML = `
-            <span onclick="openCategory('${category.id}')" style="font-weight:bold; flex:1; color:#2b2d42;">📁 ${category.title}</span>
-            <div class="actions">
-                <i class="fas fa-plus" onclick="addBookTo('${category.id}', event)" title="Add Book"></i>
-                <i class="fas fa-edit" onclick="renameCategory('${category.id}', event)" title="Rename Subject"></i>
-                <i class="fas fa-trash" onclick="deleteCategory('${category.id}', event)" title="Delete Subject"></i>
-            </div>
-        `;
+        
+        // लॉक होने पर बटन्स गायब हो जाएंगे
+        const catActions = isUnlocked ? `<div class="actions">
+            <i class="fas fa-plus" onclick="addBookTo('${category.id}', event)" title="Add Book"></i>
+            <i class="fas fa-edit" onclick="renameCategory('${category.id}', event)" title="Rename Subject"></i>
+            <i class="fas fa-trash" onclick="deleteCategory('${category.id}', event)" title="Delete Subject"></i>
+        </div>` : ``;
+
+        catDiv.innerHTML = `<span onclick="openCategory('${category.id}')" style="font-weight:bold; flex:1; color:#2b2d42;">📁 ${category.title}</span>${catActions}`;
         list.appendChild(catDiv);
 
         if (currentCategoryId === category.id) {
@@ -113,22 +156,20 @@ function renderSidebar() {
             booksContainer.style.borderLeft = "2px solid #ccc";
             booksContainer.style.marginLeft = "10px";
             
-            // 2. BOOK LEVEL
             (category.books || []).forEach(book => {
                 const bookDiv = document.createElement('div');
                 bookDiv.className = `list-item ${currentBookId === book.id && !currentChapterId ? 'active' : ''}`;
                 bookDiv.style.paddingLeft = "10px";
-                bookDiv.innerHTML = `
-                    <span onclick="openBook('${category.id}', '${book.id}')" style="font-weight:bold; flex:1; color:#4361ee;">📚 ${book.title}</span>
-                    <div class="actions">
-                        <i class="fas fa-plus" onclick="addChapterTo('${category.id}', '${book.id}', event)" title="Add Chapter"></i>
-                        <i class="fas fa-edit" onclick="renameBook('${category.id}', '${book.id}', event)" title="Rename Book"></i>
-                        <i class="fas fa-trash" onclick="deleteBook('${category.id}', '${book.id}', event)" title="Delete Book"></i>
-                    </div>
-                `;
+                
+                const bookActions = isUnlocked ? `<div class="actions">
+                    <i class="fas fa-plus" onclick="addChapterTo('${category.id}', '${book.id}', event)" title="Add Chapter"></i>
+                    <i class="fas fa-edit" onclick="renameBook('${category.id}', '${book.id}', event)" title="Rename Book"></i>
+                    <i class="fas fa-trash" onclick="deleteBook('${category.id}', '${book.id}', event)" title="Delete Book"></i>
+                </div>` : ``;
+
+                bookDiv.innerHTML = `<span onclick="openBook('${category.id}', '${book.id}')" style="font-weight:bold; flex:1; color:#4361ee;">📚 ${book.title}</span>${bookActions}`;
                 booksContainer.appendChild(bookDiv);
 
-                // 3. CHAPTER LEVEL
                 if (currentBookId === book.id) {
                     const chapContainer = document.createElement('div');
                     chapContainer.style.borderLeft = "2px solid #4361ee";
@@ -138,13 +179,13 @@ function renderSidebar() {
                         const chapDiv = document.createElement('div');
                         chapDiv.className = `list-item ${currentChapterId === chapter.id ? 'active' : ''}`;
                         chapDiv.style.paddingLeft = "10px";
-                        chapDiv.innerHTML = `
-                            <span onclick="openChapter('${category.id}', '${book.id}', '${chapter.id}')" style="font-size:0.9rem; flex:1; color:#444;">📑 ${chapter.title}</span>
-                            <div class="actions">
-                                <i class="fas fa-edit" onclick="renameChapter('${category.id}', '${book.id}', '${chapter.id}', event)" title="Rename Chapter"></i>
-                                <i class="fas fa-trash" onclick="deleteChapter('${category.id}', '${book.id}', '${chapter.id}', event)"></i>
-                            </div>
-                        `;
+                        
+                        const chapActions = isUnlocked ? `<div class="actions">
+                            <i class="fas fa-edit" onclick="renameChapter('${category.id}', '${book.id}', '${chapter.id}', event)" title="Rename Chapter"></i>
+                            <i class="fas fa-trash" onclick="deleteChapter('${category.id}', '${book.id}', '${chapter.id}', event)"></i>
+                        </div>` : ``;
+
+                        chapDiv.innerHTML = `<span onclick="openChapter('${category.id}', '${book.id}', '${chapter.id}')" style="font-size:0.9rem; flex:1; color:#444;">📑 ${chapter.title}</span>${chapActions}`;
                         chapContainer.appendChild(chapDiv);
                     });
                     booksContainer.appendChild(chapContainer);
@@ -155,12 +196,11 @@ function renderSidebar() {
     });
 }
 
-function updateBreadcrumb(text) {
-    document.getElementById('breadcrumb').innerText = text;
-}
+function updateBreadcrumb(text) { document.getElementById('breadcrumb').innerText = text; }
 
 // --- ADDING DATA ---
 function addNewCategory() {
+    if(!isUnlocked) return;
     const title = prompt("Enter Subject / Category Name (e.g. भूगोल):");
     if (!title) return;
     if (!appData.categories) appData.categories = [];
@@ -169,6 +209,7 @@ function addNewCategory() {
 }
 
 function addBookTo(catId, e) {
+    if(!isUnlocked) return;
     if(e) e.stopPropagation();
     const cat = appData.categories.find(c => c.id === catId);
     const title = prompt("Enter Book/Class Name (e.g. कक्षा 6):");
@@ -179,6 +220,7 @@ function addBookTo(catId, e) {
 }
 
 function addChapterTo(catId, bId, e) {
+    if(!isUnlocked) return;
     if(e) e.stopPropagation();
     const cat = appData.categories.find(c => c.id === catId);
     const book = cat.books.find(b => b.id === bId);
@@ -191,8 +233,9 @@ function addChapterTo(catId, bId, e) {
     triggerAutoSave(); openBook(catId, bId); 
 }
 
-// --- RENAMING DATA (NEW FEATURE) ✏️ ---
+// --- RENAMING DATA ---
 function renameCategory(id, e) {
+    if(!isUnlocked) return;
     if(e) e.stopPropagation();
     const cat = appData.categories.find(c => c.id === id);
     const newTitle = prompt("Rename Category / Subject:", cat.title);
@@ -204,6 +247,7 @@ function renameCategory(id, e) {
 }
 
 function renameBook(catId, bookId, e) {
+    if(!isUnlocked) return;
     if(e) e.stopPropagation();
     const cat = appData.categories.find(c => c.id === catId);
     const book = cat.books.find(b => b.id === bookId);
@@ -217,6 +261,7 @@ function renameBook(catId, bookId, e) {
 }
 
 function renameChapter(catId, bookId, chapId, e) {
+    if(!isUnlocked) return;
     if(e) e.stopPropagation();
     const cat = appData.categories.find(c => c.id === catId);
     const book = cat.books.find(b => b.id === bookId);
@@ -237,17 +282,17 @@ function openCategory(catId) {
     updateBreadcrumb(`📁 ${cat.title}`); renderSidebar();
 
     let html = `<div class="view-header"><h2>Books in ${cat.title}</h2>
-        <button class="btn-add" onclick="addBookTo('${cat.id}')"><i class="fas fa-plus"></i> Add Book</button>
+        ${isUnlocked ? `<button class="btn-add" onclick="addBookTo('${cat.id}')"><i class="fas fa-plus"></i> Add Book</button>` : ``}
     </div><div class="grid-list">`;
     
     if (!cat.books || cat.books.length === 0) html += `<p>No books yet in this subject.</p>`;
     (cat.books || []).forEach(b => {
         html += `<div class="grid-card" onclick="openBook('${cat.id}', '${b.id}')">
             <span>📚 ${b.title}</span>
-            <div class="actions">
+            ${isUnlocked ? `<div class="actions">
                 <i class="fas fa-edit" onclick="renameBook('${cat.id}', '${b.id}', event)"></i>
                 <i class="fas fa-trash" onclick="deleteBook('${cat.id}', '${b.id}', event)"></i>
-            </div>
+            </div>` : ``}
         </div>`;
     });
     html += `</div>`;
@@ -263,17 +308,17 @@ function openBook(catId, bookId) {
 
     let html = `<div class="view-header">
         <h2>Chapters in ${book.title}</h2>
-        <button class="btn-add" onclick="addChapterTo('${cat.id}', '${book.id}')"><i class="fas fa-plus"></i> Add Chapter</button>
+        ${isUnlocked ? `<button class="btn-add" onclick="addChapterTo('${cat.id}', '${book.id}')"><i class="fas fa-plus"></i> Add Chapter</button>` : ``}
     </div><div class="grid-list">`;
     
     if (!book.chapters || book.chapters.length === 0) html += `<p>No chapters yet.</p>`;
     (book.chapters || []).forEach(ch => {
         html += `<div class="grid-card" onclick="openChapter('${cat.id}', '${book.id}', '${ch.id}')">
             <span>📑 ${ch.title}</span>
-            <div class="actions">
+            ${isUnlocked ? `<div class="actions">
                 <i class="fas fa-edit" onclick="renameChapter('${cat.id}', '${book.id}', '${ch.id}', event)"></i>
                 <i class="fas fa-trash" onclick="deleteChapter('${cat.id}', '${book.id}', '${ch.id}', event)"></i>
-            </div>
+            </div>` : ``}
         </div>`;
     });
     html += `</div>`;
@@ -294,7 +339,7 @@ function openChapter(catId, bookId, chapterId) {
         <div style="margin-bottom: 15px;">
             <button onclick="openBook('${catId}', '${bookId}')" style="padding:8px 15px; cursor:pointer; background:#fff; border:1px solid #ccc; border-radius:5px; font-weight:bold;">⬅ Back to Book</button>
         </div>
-        <div id="toolbar-container">
+        <div id="toolbar-container" style="${isUnlocked ? '' : 'display:none;'}">
             <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
             <span class="ql-formats"><button class="ql-header" value="1"></button><button class="ql-header" value="2"></button></span>
             <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
@@ -303,19 +348,27 @@ function openChapter(catId, bookId, chapterId) {
                 <button type="button" onclick="fixPDFText()" style="width:auto; padding:0 10px; font-weight:bold; color:#4361ee;" title="PDF के टूटे पैराग्राफ को सही करें">🛠️ Fix PDF Text</button>
             </span>
         </div>
-        <div id="editor-container"></div>
+        <div id="editor-container" style="${isUnlocked ? '' : 'border-radius:8px; border-top:1px solid #ccc;'}"></div>
     `;
 
-    editor = new Quill('#editor-container', { modules: { toolbar: '#toolbar-container' }, theme: 'snow' });
+    editor = new Quill('#editor-container', { 
+        modules: { toolbar: isUnlocked ? '#toolbar-container' : false }, 
+        theme: 'snow',
+        readOnly: !isUnlocked // 👈 लॉक होने पर टाइप नहीं हो सकेगा!
+    });
+    
     editor.clipboard.dangerouslyPasteHTML(chapter.content || '');
-    editor.on('text-change', () => { chapter.content = editor.root.innerHTML; triggerAutoSave(); });
+    
+    if (isUnlocked) {
+        editor.on('text-change', () => { chapter.content = editor.root.innerHTML; triggerAutoSave(); });
+    }
 }
 
 // ==========================================
-// 5. FIX PDF TEXT 🛠️
+// 6. FIX PDF TEXT 🛠️
 // ==========================================
 function fixPDFText() {
-    if (!editor) return;
+    if (!isUnlocked || !editor) return;
     const range = editor.getSelection();
     if (range && range.length > 0) {
         let text = editor.getText(range.index, range.length);
@@ -334,6 +387,7 @@ function fixPDFText() {
 
 // --- DELETING ---
 function deleteCategory(id, e) {
+    if(!isUnlocked) return;
     e.stopPropagation();
     if(confirm("Are you sure you want to delete this Subject and ALL its Books?")) {
         appData.categories = appData.categories.filter(c => c.id !== id);
@@ -343,6 +397,7 @@ function deleteCategory(id, e) {
 }
 
 function deleteBook(catId, bookId, e) {
+    if(!isUnlocked) return;
     e.stopPropagation();
     if(confirm("Are you sure you want to delete this book?")) {
         const cat = appData.categories.find(c => c.id === catId);
@@ -353,6 +408,7 @@ function deleteBook(catId, bookId, e) {
 }
 
 function deleteChapter(catId, bookId, chapId, e) {
+    if(!isUnlocked) return;
     e.stopPropagation();
     if(confirm("Delete this chapter?")) {
         const cat = appData.categories.find(c => c.id === catId);
@@ -403,6 +459,7 @@ function jumpToChapter(catId, bId, cId) {
 }
 
 async function showAutoBackups() {
+    if(!isUnlocked) return;
     currentCategoryId = null; currentBookId = null; currentChapterId = null; renderSidebar();
     document.getElementById('contentArea').innerHTML = `<div class="welcome-screen"><h2>Loading Backups... ⏳</h2></div>`;
     const { data, error } = await supabaseClient.from('auto_backups').select('backup_date').order('backup_date', { ascending: false });
@@ -419,6 +476,7 @@ async function showAutoBackups() {
 }
 
 async function restoreAutoBackup(dateStr) {
+    if(!isUnlocked) return;
     if(!confirm(`WARNING! Restore backup from ${dateStr}? This will REPLACE current notes.`)) return;
     document.getElementById('contentArea').innerHTML = `<div class="welcome-screen"><h2>Restoring... ⏳</h2></div>`;
     const { data, error } = await supabaseClient.from('auto_backups').select('data').eq('backup_date', dateStr).single();
@@ -432,6 +490,7 @@ async function restoreAutoBackup(dateStr) {
 }
 
 function exportBackup() {
+    if(!isUnlocked) return;
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -441,6 +500,7 @@ function exportBackup() {
 }
 
 function importBackup(event) {
+    if(!isUnlocked) return;
     const file = event.target.files[0];
     if(!file) return;
     const reader = new FileReader();
