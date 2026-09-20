@@ -3,15 +3,15 @@
 // ==========================================
 const SUPABASE_URL = 'https://grjiljowzclkqrpwavnj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_QkFJZLtolSb8SNIUhqyLbA_jLB1DarC';
-
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ==========================================
-// 2. STATE MANAGEMENT
+// 2. STATE MANAGEMENT (Category -> Book -> Chapter)
 // ==========================================
-let appData = { books: [] };
+let appData = { categories: [] };
+let currentCategoryId = null;
 let currentBookId = null;
-let currentChapterId = null; // Pages हटा दिए गए हैं, अब सिर्फ Chapter रहेगा
+let currentChapterId = null; 
 let editor = null;
 let saveTimeout = null;
 
@@ -31,13 +31,32 @@ async function loadDataFromCloud() {
         
         if (data && data.data) {
             appData = data.data;
+            migrateOldData(); // पुरानी किताबों को बचाने के लिए
         }
         document.getElementById('saveStatus').innerText = "☁️ Synced";
     } catch (err) {
-        console.error("Error loading data:", err);
         document.getElementById('saveStatus').innerText = "⚠️ Offline Mode";
         const local = localStorage.getItem('bookNotesBackup');
-        if (local) appData = JSON.parse(local);
+        if (local) {
+            appData = JSON.parse(local);
+            migrateOldData();
+        }
+    }
+}
+
+// यह फंक्शन पुराने सिस्टम की किताबों को एक "Old Books" फोल्डर में डाल देगा
+function migrateOldData() {
+    if (!appData.categories) {
+        appData.categories = [];
+        if (appData.books && appData.books.length > 0) {
+            appData.categories.push({
+                id: generateId(),
+                title: "पुरानी किताबें (Old Books)",
+                books: appData.books
+            });
+        }
+        delete appData.books;
+        triggerAutoSave();
     }
 }
 
@@ -50,18 +69,23 @@ async function triggerAutoSave() {
             localStorage.setItem('bookNotesBackup', JSON.stringify(appData));
             
             const { error } = await supabaseClient.from('notes_db').upsert({ id: 1, data: appData });
-            
             if (error) throw error;
             document.getElementById('saveStatus').innerText = "☁️ Saved";
+
+            const today = new Date().toISOString().split('T')[0]; 
+            const lastBackup = localStorage.getItem('lastCloudBackupDate');
+            if (lastBackup !== today && appData.categories.length > 0) {
+                const { error: backupError } = await supabaseClient.from('auto_backups').upsert({ backup_date: today, data: appData });
+                if (!backupError) localStorage.setItem('lastCloudBackupDate', today);
+            }
         } catch (err) {
-            console.error("Save error:", err);
             document.getElementById('saveStatus').innerText = "⚠️ Save Failed";
         }
     }, 1500);
 }
 
 // ==========================================
-// 4. UI RENDERING & NAVIGATION (BOOKS -> CHAPTERS ONLY)
+// 4. UI RENDERING & NAVIGATION
 // ==========================================
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
@@ -69,39 +93,62 @@ function renderSidebar() {
     const list = document.getElementById('bookList');
     list.innerHTML = '';
     
-    appData.books.forEach(book => {
-        // BOOK LEVEL
-        const bookDiv = document.createElement('div');
-        bookDiv.className = `list-item ${currentBookId === book.id && !currentChapterId ? 'active' : ''}`;
-        bookDiv.innerHTML = `
-            <span onclick="openBook('${book.id}')" style="font-weight:bold; flex:1;">📚 ${book.title}</span>
+    (appData.categories || []).forEach(category => {
+        // 1. CATEGORY LEVEL (Subject)
+        const catDiv = document.createElement('div');
+        catDiv.className = `list-item ${currentCategoryId === category.id && !currentBookId ? 'active' : ''}`;
+        catDiv.style.backgroundColor = "#eef2ff";
+        catDiv.style.borderBottom = "1px solid #ccc";
+        catDiv.innerHTML = `
+            <span onclick="openCategory('${category.id}')" style="font-weight:bold; flex:1; color:#2b2d42;">📁 ${category.title}</span>
             <div class="actions">
-                <i class="fas fa-plus" onclick="addChapterTo('${book.id}', event)" title="Add Chapter"></i>
-                <i class="fas fa-trash" onclick="deleteBook('${book.id}', event)" title="Delete Book"></i>
+                <i class="fas fa-plus" onclick="addBookTo('${category.id}', event)" title="Add Book"></i>
+                <i class="fas fa-trash" onclick="deleteCategory('${category.id}', event)" title="Delete Subject"></i>
             </div>
         `;
-        list.appendChild(bookDiv);
+        list.appendChild(catDiv);
 
-        // CHAPTERS LEVEL (Directly opens editor)
-        if (currentBookId === book.id) {
-            const chapContainer = document.createElement('div');
-            chapContainer.style.background = "#ffffff";
-            chapContainer.style.borderLeft = "3px solid #4361ee";
-            chapContainer.style.marginLeft = "10px";
+        if (currentCategoryId === category.id) {
+            const booksContainer = document.createElement('div');
+            booksContainer.style.borderLeft = "2px solid #ccc";
+            booksContainer.style.marginLeft = "10px";
             
-            (book.chapters || []).forEach(chapter => {
-                const chapDiv = document.createElement('div');
-                chapDiv.className = `list-item ${currentChapterId === chapter.id ? 'active' : ''}`;
-                chapDiv.style.paddingLeft = "15px";
-                chapDiv.innerHTML = `
-                    <span onclick="openChapter('${chapter.id}')" style="font-size:0.9rem; flex:1; color:#444;">📑 ${chapter.title}</span>
+            // 2. BOOK LEVEL (Class)
+            (category.books || []).forEach(book => {
+                const bookDiv = document.createElement('div');
+                bookDiv.className = `list-item ${currentBookId === book.id && !currentChapterId ? 'active' : ''}`;
+                bookDiv.style.paddingLeft = "10px";
+                bookDiv.innerHTML = `
+                    <span onclick="openBook('${category.id}', '${book.id}')" style="font-weight:bold; flex:1; color:#4361ee;">📚 ${book.title}</span>
                     <div class="actions">
-                        <i class="fas fa-trash" onclick="deleteChapter('${chapter.id}', event)" title="Delete Chapter"></i>
+                        <i class="fas fa-plus" onclick="addChapterTo('${category.id}', '${book.id}', event)" title="Add Chapter"></i>
+                        <i class="fas fa-trash" onclick="deleteBook('${category.id}', '${book.id}', event)" title="Delete Book"></i>
                     </div>
                 `;
-                chapContainer.appendChild(chapDiv);
+                booksContainer.appendChild(bookDiv);
+
+                // 3. CHAPTER LEVEL (Notes)
+                if (currentBookId === book.id) {
+                    const chapContainer = document.createElement('div');
+                    chapContainer.style.borderLeft = "2px solid #4361ee";
+                    chapContainer.style.marginLeft = "15px";
+                    
+                    (book.chapters || []).forEach(chapter => {
+                        const chapDiv = document.createElement('div');
+                        chapDiv.className = `list-item ${currentChapterId === chapter.id ? 'active' : ''}`;
+                        chapDiv.style.paddingLeft = "10px";
+                        chapDiv.innerHTML = `
+                            <span onclick="openChapter('${category.id}', '${book.id}', '${chapter.id}')" style="font-size:0.9rem; flex:1; color:#444;">📑 ${chapter.title}</span>
+                            <div class="actions">
+                                <i class="fas fa-trash" onclick="deleteChapter('${category.id}', '${book.id}', '${chapter.id}', event)"></i>
+                            </div>
+                        `;
+                        chapContainer.appendChild(chapDiv);
+                    });
+                    booksContainer.appendChild(chapContainer);
+                }
             });
-            list.appendChild(chapContainer);
+            list.appendChild(booksContainer);
         }
     });
 }
@@ -111,48 +158,52 @@ function updateBreadcrumb(text) {
 }
 
 // --- ADDING DATA ---
-function addNewBook() {
-    const title = prompt("Enter Book Name:");
+function addNewCategory() {
+    const title = prompt("Enter Subject / Category Name (e.g. भूगोल):");
     if (!title) return;
-    appData.books.push({ id: generateId(), title: title, chapters: [] });
-    triggerAutoSave();
-    renderSidebar();
+    if (!appData.categories) appData.categories = [];
+    appData.categories.push({ id: generateId(), title: title, books: [] });
+    triggerAutoSave(); renderSidebar();
 }
 
-function addChapterTo(bId, e) {
+function addBookTo(catId, e) {
     if(e) e.stopPropagation();
-    const book = appData.books.find(b => b.id === bId);
-    let title = prompt("Enter Chapter Name (Leave blank for default name):");
+    const cat = appData.categories.find(c => c.id === catId);
+    const title = prompt("Enter Book/Class Name (e.g. कक्षा 6):");
+    if (!title) return;
+    if(!cat.books) cat.books = [];
+    cat.books.push({ id: generateId(), title: title, chapters: [] });
+    triggerAutoSave(); openCategory(catId); 
+}
+
+function addChapterTo(catId, bId, e) {
+    if(e) e.stopPropagation();
+    const cat = appData.categories.find(c => c.id === catId);
+    const book = cat.books.find(b => b.id === bId);
+    let title = prompt("Enter Chapter Name:");
     if (title === null) return;
     if (title.trim() === "") title = "Chapter " + ((book.chapters || []).length + 1);
     
     if(!book.chapters) book.chapters = [];
-    // Page हटाकर content सीधा Chapter में डाला गया है
     book.chapters.push({ id: generateId(), title: title, content: "" });
-    triggerAutoSave();
-    openBook(bId); 
+    triggerAutoSave(); openBook(catId, bId); 
 }
 
 // --- OPENING VIEWS ---
-function openBook(bookId) {
-    currentBookId = bookId; currentChapterId = null;
-    const book = appData.books.find(b => b.id === bookId);
-    updateBreadcrumb(`📘 ${book.title}`);
-    renderSidebar();
+function openCategory(catId) {
+    currentCategoryId = catId; currentBookId = null; currentChapterId = null;
+    const cat = appData.categories.find(c => c.id === catId);
+    updateBreadcrumb(`📁 ${cat.title}`); renderSidebar();
 
-    let html = `<div class="view-header">
-        <h2>Chapters in ${book.title}</h2>
-        <button class="btn-add" onclick="addChapterTo('${book.id}')"><i class="fas fa-plus"></i> Add Chapter</button>
+    let html = `<div class="view-header"><h2>Books in ${cat.title}</h2>
+        <button class="btn-add" onclick="addBookTo('${cat.id}')"><i class="fas fa-plus"></i> Add Book</button>
     </div><div class="grid-list">`;
     
-    if (!book.chapters || book.chapters.length === 0) html += `<p>No chapters yet. Click "+ Add Chapter" to start.</p>`;
-    
-    (book.chapters || []).forEach(ch => {
-        html += `<div class="grid-card" onclick="openChapter('${ch.id}')">
-            <span>📑 ${ch.title}</span>
-            <div class="actions">
-                <i class="fas fa-trash" onclick="deleteChapter('${ch.id}', event)"></i>
-            </div>
+    if (!cat.books || cat.books.length === 0) html += `<p>No books yet in this subject.</p>`;
+    (cat.books || []).forEach(b => {
+        html += `<div class="grid-card" onclick="openBook('${cat.id}', '${b.id}')">
+            <span>📚 ${b.title}</span>
+            <div class="actions"><i class="fas fa-trash" onclick="deleteBook('${cat.id}', '${b.id}', event)"></i></div>
         </div>`;
     });
     html += `</div>`;
@@ -160,19 +211,41 @@ function openBook(bookId) {
     if(window.innerWidth <= 768) toggleSidebar();
 }
 
-// Chapter खोलते ही सीधा Editor खुलेगा
-function openChapter(chapterId) {
-    currentChapterId = chapterId;
-    const book = appData.books.find(b => b.id === currentBookId);
+function openBook(catId, bookId) {
+    currentCategoryId = catId; currentBookId = bookId; currentChapterId = null;
+    const cat = appData.categories.find(c => c.id === catId);
+    const book = cat.books.find(b => b.id === bookId);
+    updateBreadcrumb(`📁 ${cat.title} > 📘 ${book.title}`); renderSidebar();
+
+    let html = `<div class="view-header">
+        <h2>Chapters in ${book.title}</h2>
+        <button class="btn-add" onclick="addChapterTo('${cat.id}', '${book.id}')"><i class="fas fa-plus"></i> Add Chapter</button>
+    </div><div class="grid-list">`;
+    
+    if (!book.chapters || book.chapters.length === 0) html += `<p>No chapters yet.</p>`;
+    (book.chapters || []).forEach(ch => {
+        html += `<div class="grid-card" onclick="openChapter('${cat.id}', '${book.id}', '${ch.id}')">
+            <span>📑 ${ch.title}</span>
+            <div class="actions"><i class="fas fa-trash" onclick="deleteChapter('${cat.id}', '${book.id}', '${ch.id}', event)"></i></div>
+        </div>`;
+    });
+    html += `</div>`;
+    document.getElementById('contentArea').innerHTML = html;
+    if(window.innerWidth <= 768) toggleSidebar();
+}
+
+function openChapter(catId, bookId, chapterId) {
+    currentCategoryId = catId; currentBookId = bookId; currentChapterId = chapterId;
+    const cat = appData.categories.find(c => c.id === catId);
+    const book = cat.books.find(b => b.id === bookId);
     const chapter = book.chapters.find(c => c.id === chapterId);
     
-    updateBreadcrumb(`📘 ${book.title} > 📑 ${chapter.title}`);
+    updateBreadcrumb(`📁 ${cat.title} > 📘 ${book.title} > 📑 ${chapter.title}`);
     renderSidebar();
 
-    // 🔴 यहाँ "🛠️ Fix PDF Text" बटन जोड़ा गया है
     document.getElementById('contentArea').innerHTML = `
         <div style="margin-bottom: 15px;">
-            <button onclick="openBook('${currentBookId}')" style="padding:8px 15px; cursor:pointer; background:#fff; border:1px solid #ccc; border-radius:5px; font-weight:bold;">⬅ Back to Book</button>
+            <button onclick="openBook('${catId}', '${bookId}')" style="padding:8px 15px; cursor:pointer; background:#fff; border:1px solid #ccc; border-radius:5px; font-weight:bold;">⬅ Back to Book</button>
         </div>
         <div id="toolbar-container">
             <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
@@ -186,62 +259,59 @@ function openChapter(chapterId) {
         <div id="editor-container"></div>
     `;
 
-    editor = new Quill('#editor-container', {
-        modules: { toolbar: '#toolbar-container' },
-        theme: 'snow'
-    });
-    
-    // Chapter का content सीधा Editor में
+    editor = new Quill('#editor-container', { modules: { toolbar: '#toolbar-container' }, theme: 'snow' });
     editor.clipboard.dangerouslyPasteHTML(chapter.content || '');
-
-    editor.on('text-change', () => {
-        chapter.content = editor.root.innerHTML;
-        triggerAutoSave();
-    });
+    editor.on('text-change', () => { chapter.content = editor.root.innerHTML; triggerAutoSave(); });
 }
 
 // ==========================================
-// 5. NEW FEATURE: FIX PDF TEXT 🛠️
+// 5. FIX PDF TEXT 🛠️
 // ==========================================
 function fixPDFText() {
     if (!editor) return;
-    
     const range = editor.getSelection();
     if (range && range.length > 0) {
         let text = editor.getText(range.index, range.length);
-        
-        // मैजिक लॉजिक: असली पैराग्राफ को बचाकर सिर्फ फालतू Enter हटाता है
         text = text.replace(/\n\n/g, '||PARAGRAPH||'); 
         text = text.replace(/\n/g, ' '); 
         text = text.replace(/\|\|PARAGRAPH\|\|/g, '\n\n'); 
         text = text.replace(/ +/g, ' '); 
-        
         editor.deleteText(range.index, range.length);
         editor.insertText(range.index, text);
         editor.setSelection(range.index, text.length);
-        
         triggerAutoSave();
     } else {
-        alert("❌ पहले माउस से उस टूटे हुए टेक्स्ट को Select करें जिसे ठीक करना है, फिर इस बटन को दबाएं!");
+        alert("❌ पहले माउस से उस टूटे हुए टेक्स्ट को Select करें जिसे ठीक करना है!");
     }
 }
 
 // --- DELETING ---
-function deleteBook(id, e) {
+function deleteCategory(id, e) {
     e.stopPropagation();
-    if(confirm("Are you sure you want to delete this book and ALL its chapters?")) {
-        appData.books = appData.books.filter(b => b.id !== id);
-        if(currentBookId === id) document.getElementById('contentArea').innerHTML = '<div class="welcome-screen"><h2>Book Deleted</h2></div>';
+    if(confirm("Are you sure you want to delete this Subject and ALL its Books?")) {
+        appData.categories = appData.categories.filter(c => c.id !== id);
+        if(currentCategoryId === id) document.getElementById('contentArea').innerHTML = '<div class="welcome-screen"><h2>Subject Deleted</h2></div>';
         triggerAutoSave(); renderSidebar();
     }
 }
 
-function deleteChapter(id, e) {
+function deleteBook(catId, bookId, e) {
+    e.stopPropagation();
+    if(confirm("Are you sure you want to delete this book?")) {
+        const cat = appData.categories.find(c => c.id === catId);
+        cat.books = cat.books.filter(b => b.id !== bookId);
+        if(currentBookId === bookId) openCategory(catId);
+        triggerAutoSave(); renderSidebar();
+    }
+}
+
+function deleteChapter(catId, bookId, chapId, e) {
     e.stopPropagation();
     if(confirm("Delete this chapter?")) {
-        const book = appData.books.find(b => b.id === currentBookId);
-        book.chapters = book.chapters.filter(c => c.id !== id);
-        if(currentChapterId === id) openBook(currentBookId);
+        const cat = appData.categories.find(c => c.id === catId);
+        const book = cat.books.find(b => b.id === bookId);
+        book.chapters = book.chapters.filter(c => c.id !== chapId);
+        if(currentChapterId === chapId) openBook(catId, bookId);
         triggerAutoSave(); renderSidebar();
     }
 }
@@ -250,27 +320,27 @@ function deleteChapter(id, e) {
 function handleSearch() {
     const query = document.getElementById('searchInput').value.toLowerCase();
     if (!query) {
-        if(currentBookId) openBook(currentBookId);
+        if(currentCategoryId) openCategory(currentCategoryId);
         else document.getElementById('contentArea').innerHTML = '<div class="welcome-screen"><h2>Welcome</h2></div>';
         return;
     }
-
     let resultsHTML = `<h2>Search Results for "${query}"</h2><div class="grid-list">`;
     let found = false;
 
-    appData.books.forEach(book => {
-        (book.chapters || []).forEach(chapter => {
-            // Chapter के content में Search
-            const contentText = (chapter.content || "").replace(/<[^>]+>/g, '').toLowerCase(); 
-            if (chapter.title.toLowerCase().includes(query) || contentText.includes(query) || book.title.toLowerCase().includes(query)) {
-                found = true;
-                resultsHTML += `
-                    <div class="search-result-item" onclick="jumpToChapter('${book.id}', '${chapter.id}')">
-                        <div class="search-path">📘 ${book.title}</div>
-                        <strong>📑 ${chapter.title}</strong>
-                    </div>
-                `;
-            }
+    (appData.categories || []).forEach(cat => {
+        (cat.books || []).forEach(book => {
+            (book.chapters || []).forEach(chapter => {
+                const contentText = (chapter.content || "").replace(/<[^>]+>/g, '').toLowerCase(); 
+                if (chapter.title.toLowerCase().includes(query) || contentText.includes(query) || book.title.toLowerCase().includes(query) || cat.title.toLowerCase().includes(query)) {
+                    found = true;
+                    resultsHTML += `
+                        <div class="search-result-item" onclick="jumpToChapter('${cat.id}', '${book.id}', '${chapter.id}')">
+                            <div class="search-path">📁 ${cat.title} > 📘 ${book.title}</div>
+                            <strong>📑 ${chapter.title}</strong>
+                        </div>
+                    `;
+                }
+            });
         });
     });
 
@@ -279,21 +349,48 @@ function handleSearch() {
     document.getElementById('contentArea').innerHTML = resultsHTML;
 }
 
-function jumpToChapter(bId, cId) {
+function jumpToChapter(catId, bId, cId) {
     document.getElementById('searchInput').value = '';
-    currentBookId = bId; 
-    openChapter(cId);
+    openChapter(catId, bId, cId);
     if(window.innerWidth <= 768) toggleSidebar();
+}
+
+async function showAutoBackups() {
+    currentCategoryId = null; currentBookId = null; currentChapterId = null; renderSidebar();
+    document.getElementById('contentArea').innerHTML = `<div class="welcome-screen"><h2>Loading Backups... ⏳</h2></div>`;
+    const { data, error } = await supabaseClient.from('auto_backups').select('backup_date').order('backup_date', { ascending: false });
+    if (error) return;
+    let html = `<div class="view-header"><h2>☁️ Daily Cloud Backups</h2></div><div class="grid-list">`;
+    (data || []).forEach(b => {
+        html += `<div class="grid-card" style="align-items:center;">
+            <span style="font-weight:bold; font-size:1.1rem;">📅 Date: ${b.backup_date}</span>
+            <button onclick="restoreAutoBackup('${b.backup_date}')" style="padding:8px 15px; background:#e63946; color:white; border:none; border-radius:5px; cursor:pointer;">Restore</button>
+        </div>`;
+    });
+    html += `</div>`;
+    document.getElementById('contentArea').innerHTML = html;
+}
+
+async function restoreAutoBackup(dateStr) {
+    if(!confirm(`WARNING! Restore backup from ${dateStr}? This will REPLACE current notes.`)) return;
+    document.getElementById('contentArea').innerHTML = `<div class="welcome-screen"><h2>Restoring... ⏳</h2></div>`;
+    const { data, error } = await supabaseClient.from('auto_backups').select('data').eq('backup_date', dateStr).single();
+    if(data && data.data) {
+        appData = data.data;
+        migrateOldData();
+        await supabaseClient.from('notes_db').upsert({ id: 1, data: appData });
+        triggerAutoSave(); renderSidebar();
+        document.getElementById('contentArea').innerHTML = `<div class="welcome-screen"><h2 style="color:green;">✅ Backup Restored!</h2></div>`;
+    }
 }
 
 function exportBackup() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData));
     const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href",     dataStr);
+    downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", "MyBookNotes_Backup.json");
     document.body.appendChild(downloadAnchorNode); 
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+    downloadAnchorNode.click(); downloadAnchorNode.remove();
 }
 
 function importBackup(event) {
@@ -303,18 +400,15 @@ function importBackup(event) {
     reader.onload = function(e) {
         try {
             const importedData = JSON.parse(e.target.result);
-            if(importedData && importedData.books) {
+            if(importedData) {
                 appData = importedData;
-                triggerAutoSave();
-                renderSidebar();
-                document.getElementById('contentArea').innerHTML = '<div class="welcome-screen"><h2>Backup Restored Successfully!</h2></div>';
+                migrateOldData();
+                triggerAutoSave(); renderSidebar();
                 alert("Backup Restored!");
-            } else { alert("Invalid Backup File."); }
+            }
         } catch (err) { alert("Error reading file."); }
     };
     reader.readAsText(file);
 }
 
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-}
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
