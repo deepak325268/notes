@@ -29,14 +29,14 @@
         </div>
 
         <div class="sidebar-footer">
-            <button onclick="addNewBook()" class="btn-primary"><i class="fas fa-plus"></i> Add Book</button>
+            <button onclick="addNewCategory()" class="btn-primary" style="background-color: #2b2d42;"><i class="fas fa-folder-plus"></i> Add Category / Subject</button>
             <div class="backup-options">
                 <button onclick="exportBackup()"><i class="fas fa-download"></i> Export</button>
                 <label for="importFile" class="btn-import"><i class="fas fa-upload"></i> Import</label>
                 <input type="file" id="importFile" accept=".json" onchange="importBackup(event)" style="display: none;">
             </div>
+            <button onclick="showAutoBackups()" style="width:100%; margin-top:10px; padding:8px; background:#eef2ff; border:1px solid #4361ee; color:#4361ee; border-radius:5px; cursor:pointer; font-weight:bold;"><i class="fas fa-history"></i> Cloud History</button>
         </div>
-    </div>
 
     <!-- Main Content Area -->
     <div class="main-content">
