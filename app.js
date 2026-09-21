@@ -63,7 +63,7 @@ window.onload = async () => {
     }
 
     await loadDataFromCloud();
-    renderSidebar();
+    ();
 };
 
 async function loadDataFromCloud() {
@@ -152,7 +152,6 @@ function renderSidebar() {
         catDiv.style.backgroundColor = "#eef2ff";
         catDiv.style.borderBottom = "1px solid #ccc";
         
-        // लॉक होने पर बटन्स गायब हो जाएंगे
         const catActions = isUnlocked ? `<div class="actions">
             <i class="fas fa-plus" onclick="addBookTo('${category.id}', event)" title="Add Book"></i>
             <i class="fas fa-edit" onclick="renameCategory('${category.id}', event)" title="Rename Subject"></i>
@@ -168,6 +167,12 @@ function renderSidebar() {
             booksContainer.style.marginLeft = "10px";
             
             (category.books || []).forEach(book => {
+                
+                // 🔴 SMART HIDE FEATURE: अगर कोई किताब सिलेक्टेड है, तो सिर्फ उसी को दिखाओ, बाकी को छिपा दो!
+                if (currentBookId !== null && currentBookId !== book.id) {
+                    return; // इसे लिस्ट में मत जोड़ो ताकि स्क्रीन साफ रहे
+                }
+
                 const bookDiv = document.createElement('div');
                 bookDiv.className = `list-item ${currentBookId === book.id && !currentChapterId ? 'active' : ''}`;
                 bookDiv.style.paddingLeft = "10px";
