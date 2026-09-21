@@ -106,28 +106,38 @@ async function triggerAutoSave() {
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(async () => {
         try {
+            // 1. मेन डेटा सेव करें (जो 100% काम कर रहा है)
             appData.lastUpdated = new Date().toISOString();
             localStorage.setItem('bookNotesBackup', JSON.stringify(appData));
 
             const { error } = await supabaseClient.from('notes_db').upsert({ id: 1, data: appData });
             if (error) throw error;
+            
+            // अगर यहाँ तक आ गया, मतलब नोट्स क्लाउड में सेव हो गए!
             document.getElementById('saveStatus').innerText = "☁️ Saved";
 
-            const today = new Date().toISOString().split('T')[0];
-            const lastBackup = localStorage.getItem('lastCloudBackupDate');
-            if (lastBackup !== today && appData.categories.length > 0) {
-                const { error: backupError } = await supabaseClient.from('auto_backups').upsert({ backup_date: today, data: appData });
-                if (!backupError) {
-                    localStorage.setItem('lastCloudBackupDate', today);
-                    
-                    const { data: allBackups } = await supabaseClient.from('auto_backups').select('backup_date').order('backup_date', { ascending: false });
-                    if (allBackups && allBackups.length > 15) {
-                        const oldBackupsToDelete = allBackups.slice(15).map(b => b.backup_date);
-                        await supabaseClient.from('auto_backups').delete().in('backup_date', oldBackupsToDelete);
+            // 2. ऑटो-बैकअप (इसे अलग सुरक्षित ब्लॉक में रखा है ताकि यह मेन सेव को न रोके)
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const lastBackup = localStorage.getItem('lastCloudBackupDate');
+                if (lastBackup !== today && appData.categories && appData.categories.length > 0) {
+                    const { error: backupError } = await supabaseClient.from('auto_backups').upsert({ backup_date: today, data: appData });
+                    if (!backupError) {
+                        localStorage.setItem('lastCloudBackupDate', today);
+                        
+                        const { data: allBackups } = await supabaseClient.from('auto_backups').select('backup_date').order('backup_date', { ascending: false });
+                        if (allBackups && allBackups.length > 15) {
+                            const oldBackupsToDelete = allBackups.slice(15).map(b => b.backup_date);
+                            await supabaseClient.from('auto_backups').delete().in('backup_date', oldBackupsToDelete);
+                        }
                     }
                 }
+            } catch (backupErr) {
+                console.log("Backup Error (Ignored):", backupErr);
             }
+
         } catch (err) {
+            console.error("Main Save Error:", err);
             document.getElementById('saveStatus').innerText = "⚠️ Save Failed";
         }
     }, 1500);
