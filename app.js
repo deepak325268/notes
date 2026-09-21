@@ -106,17 +106,22 @@ async function triggerAutoSave() {
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(async () => {
         try {
-            // 1. मेन डेटा सेव करें (जो 100% काम कर रहा है)
             appData.lastUpdated = new Date().toISOString();
-            localStorage.setItem('bookNotesBackup', JSON.stringify(appData));
+            
+            // 1. ब्राउज़र का लोकल स्टोरेज (इसे ट्राई-कैच में डाला है ताकि फुल होने पर ऐप क्रैश न हो)
+            try {
+                localStorage.setItem('bookNotesBackup', JSON.stringify(appData));
+            } catch (localErr) {
+                console.log("Local Storage Full, skipping local backup...");
+            }
 
+            // 2. मेन क्लाउड सेव (Supabase) - अब यह बिना रुके काम करेगा!
             const { error } = await supabaseClient.from('notes_db').upsert({ id: 1, data: appData });
             if (error) throw error;
             
-            // अगर यहाँ तक आ गया, मतलब नोट्स क्लाउड में सेव हो गए!
             document.getElementById('saveStatus').innerText = "☁️ Saved";
 
-            // 2. ऑटो-बैकअप (इसे अलग सुरक्षित ब्लॉक में रखा है ताकि यह मेन सेव को न रोके)
+            // 3. डेली ऑटो-बैकअप
             try {
                 const today = new Date().toISOString().split('T')[0];
                 const lastBackup = localStorage.getItem('lastCloudBackupDate');
@@ -142,7 +147,6 @@ async function triggerAutoSave() {
         }
     }, 1500);
 }
-
 // ==========================================
 // 5. UI RENDERING (SUPER CLEAN SIDEBAR - ONLY CATEGORIES)
 // ==========================================
