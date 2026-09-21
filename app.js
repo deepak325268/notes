@@ -138,6 +138,11 @@ async function triggerAutoSave() {
 // ==========================================
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
+// ==========================================
+// 5. UI RENDERING & NAVIGATION (WITH SMART HIDE & NO CHAPTERS IN SIDEBAR)
+// ==========================================
+function generateId() { return Math.random().toString(36).substr(2, 9); }
+
 function renderSidebar() {
     const list = document.getElementById('bookList');
     list.innerHTML = '';
@@ -178,27 +183,8 @@ function renderSidebar() {
 
                 bookDiv.innerHTML = `<span onclick="openBook('${category.id}', '${book.id}')" style="font-weight:bold; flex:1; color:#4361ee;">📚 ${book.title}</span>${bookActions}`;
                 booksContainer.appendChild(bookDiv);
-
-                if (currentBookId === book.id) {
-                    const chapContainer = document.createElement('div');
-                    chapContainer.style.borderLeft = "2px solid #4361ee";
-                    chapContainer.style.marginLeft = "15px";
-
-                    (book.chapters || []).forEach(chapter => {
-                        const chapDiv = document.createElement('div');
-                        chapDiv.className = `list-item ${currentChapterId === chapter.id ? 'active' : ''}`;
-                        chapDiv.style.paddingLeft = "10px";
-
-                        const chapActions = isUnlocked ? `<div class="actions">
-                            <i class="fas fa-edit" onclick="renameChapter('${category.id}', '${book.id}', '${chapter.id}', event)" title="Rename Chapter"></i>
-                            <i class="fas fa-trash" onclick="deleteChapter('${category.id}', '${book.id}', '${chapter.id}', event)"></i>
-                        </div>` : ``;
-
-                        chapDiv.innerHTML = `<span onclick="openChapter('${category.id}', '${book.id}', '${chapter.id}')" style="font-size:0.9rem; flex:1; color:#444;">📑 ${chapter.title}</span>${chapActions}`;
-                        chapContainer.appendChild(chapDiv);
-                    });
-                    booksContainer.appendChild(chapContainer);
-                }
+                
+                // 🔴 यहाँ से Chapters को साइडबार में दिखाने वाला कोड हटा दिया गया है 🔴
             });
             list.appendChild(booksContainer);
         }
