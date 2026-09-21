@@ -134,12 +134,7 @@ async function triggerAutoSave() {
 }
 
 // ==========================================
-// 5. UI RENDERING & NAVIGATION (WITH SMART HIDE)
-// ==========================================
-function generateId() { return Math.random().toString(36).substr(2, 9); }
-
-// ==========================================
-// 5. UI RENDERING & NAVIGATION (WITH SMART HIDE & NO CHAPTERS IN SIDEBAR)
+// 5. UI RENDERING (SUPER CLEAN SIDEBAR - ONLY CATEGORIES)
 // ==========================================
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
@@ -149,7 +144,8 @@ function renderSidebar() {
 
     (appData.categories || []).forEach(category => {
         const catDiv = document.createElement('div');
-        catDiv.className = `list-item ${currentCategoryId === category.id && !currentBookId ? 'active' : ''}`;
+        // जब भी इस विषय के अंदर कुछ भी खुला होगा, तो यह हाईलाइट रहेगा
+        catDiv.className = `list-item ${currentCategoryId === category.id ? 'active' : ''}`;
         catDiv.style.backgroundColor = "#eef2ff";
         catDiv.style.borderBottom = "1px solid #ccc";
 
@@ -161,33 +157,8 @@ function renderSidebar() {
 
         catDiv.innerHTML = `<span onclick="openCategory('${category.id}')" style="font-weight:bold; flex:1; color:#2b2d42;">📁 ${category.title}</span>${catActions}`;
         list.appendChild(catDiv);
-
-        if (currentCategoryId === category.id) {
-            const booksContainer = document.createElement('div');
-            booksContainer.style.borderLeft = "2px solid #ccc";
-            booksContainer.style.marginLeft = "10px";
-
-            (category.books || []).forEach(book => {
-                // SMART HIDE: Baaki books ko chhupao agar koi dusri book selected hai
-                if (currentBookId !== null && currentBookId !== book.id) return;
-
-                const bookDiv = document.createElement('div');
-                bookDiv.className = `list-item ${currentBookId === book.id && !currentChapterId ? 'active' : ''}`;
-                bookDiv.style.paddingLeft = "10px";
-
-                const bookActions = isUnlocked ? `<div class="actions">
-                    <i class="fas fa-plus" onclick="addChapterTo('${category.id}', '${book.id}', event)" title="Add Chapter"></i>
-                    <i class="fas fa-edit" onclick="renameBook('${category.id}', '${book.id}', event)" title="Rename Book"></i>
-                    <i class="fas fa-trash" onclick="deleteBook('${category.id}', '${book.id}', event)" title="Delete Book"></i>
-                </div>` : ``;
-
-                bookDiv.innerHTML = `<span onclick="openBook('${category.id}', '${book.id}')" style="font-weight:bold; flex:1; color:#4361ee;">📚 ${book.title}</span>${bookActions}`;
-                booksContainer.appendChild(bookDiv);
-                
-                // 🔴 यहाँ से Chapters को साइडबार में दिखाने वाला कोड हटा दिया गया है 🔴
-            });
-            list.appendChild(booksContainer);
-        }
+        
+        // 🔴 किताबें और चैप्टर अब साइडबार में नहीं दिखेंगे, वो सीधे मेन स्क्रीन पर खुलेंगे! 🔴
     });
 }
 
