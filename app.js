@@ -1,5 +1,5 @@
 // ==========================================
-// 1. SUPABASE SETUP (Database Configuration)
+// 1. SUPABASE SETUP
 // ==========================================
 const SUPABASE_URL = 'https://grjiljowzclkqrpwavnj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_QkFJZLtolSb8SNIUhqyLbA_jLB1DarC';
@@ -8,7 +8,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ==========================================
 // 2. SECURITY PIN (ENCRYPTED) 🔒
 // ==========================================
-const SECRET_HASH = "48719"; // "1234" का एन्क्रिप्टेड कोड
+const SECRET_HASH = "48719"; // "131" ka encrypted code
 let isUnlocked = localStorage.getItem('notes_unlocked') === 'true';
 
 function encryptPIN(pin) {
@@ -16,7 +16,7 @@ function encryptPIN(pin) {
     for (let i = 0; i < pin.length; i++) {
         let char = pin.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; 
+        hash = hash & hash;
     }
     return hash.toString();
 }
@@ -24,13 +24,13 @@ function encryptPIN(pin) {
 function toggleLock() {
     if (isUnlocked) {
         localStorage.setItem('notes_unlocked', 'false');
-        location.reload(); 
+        location.reload();
     } else {
         const pin = prompt("Enter Secret PIN to Unlock Editing:");
         if (pin !== null) {
             if (encryptPIN(pin) === SECRET_HASH) {
                 localStorage.setItem('notes_unlocked', 'true');
-                location.reload(); 
+                location.reload();
             } else {
                 alert("❌ Wrong PIN! You cannot edit.");
             }
@@ -44,7 +44,7 @@ function toggleLock() {
 let appData = { categories: [] };
 let currentCategoryId = null;
 let currentBookId = null;
-let currentChapterId = null; 
+let currentChapterId = null;
 let editor = null;
 let saveTimeout = null;
 
@@ -53,8 +53,7 @@ let saveTimeout = null;
 // ==========================================
 window.onload = async () => {
     document.getElementById('saveStatus').innerText = "☁️ Loading...";
-    
-    // अगर अनलॉक है तो ही Admin बटन दिखेंगे
+
     if (isUnlocked) {
         document.getElementById('adminControls').style.display = 'block';
         document.getElementById('lockBtn').innerHTML = '🔓 Lock Editing';
@@ -63,17 +62,17 @@ window.onload = async () => {
     }
 
     await loadDataFromCloud();
-    ();
+    renderSidebar();
 };
 
 async function loadDataFromCloud() {
     try {
         const { data, error } = await supabaseClient.from('notes_db').select('data').eq('id', 1).single();
         if (error && error.code !== 'PGRST116') throw error;
-        
+
         if (data && data.data) {
             appData = data.data;
-            migrateOldData(); 
+            migrateOldData();
         }
         document.getElementById('saveStatus').innerText = "☁️ Synced";
     } catch (err) {
@@ -102,29 +101,25 @@ function migrateOldData() {
 }
 
 async function triggerAutoSave() {
-    if (!isUnlocked) return; // लॉक होने पर सेव नहीं होगा
+    if (!isUnlocked) return;
     document.getElementById('saveStatus').innerText = "⏳ Saving...";
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(async () => {
         try {
             appData.lastUpdated = new Date().toISOString();
             localStorage.setItem('bookNotesBackup', JSON.stringify(appData));
-            
-            // 1. मेन नोट्स सेव करें
+
             const { error } = await supabaseClient.from('notes_db').upsert({ id: 1, data: appData });
             if (error) throw error;
             document.getElementById('saveStatus').innerText = "☁️ Saved";
 
-            // 2. डेली बैकअप और ऑटो-क्लीनअप (Auto-Cleanup)
-            const today = new Date().toISOString().split('T')[0]; 
+            const today = new Date().toISOString().split('T')[0];
             const lastBackup = localStorage.getItem('lastCloudBackupDate');
             if (lastBackup !== today && appData.categories.length > 0) {
-                // आज का बैकअप सेव करें
                 const { error: backupError } = await supabaseClient.from('auto_backups').upsert({ backup_date: today, data: appData });
                 if (!backupError) {
                     localStorage.setItem('lastCloudBackupDate', today);
                     
-                    // 🧹 स्मार्ट सफाई: सिर्फ 15 दिन का बैकअप रखें, पुराने अपने आप डिलीट करें
                     const { data: allBackups } = await supabaseClient.from('auto_backups').select('backup_date').order('backup_date', { ascending: false });
                     if (allBackups && allBackups.length > 15) {
                         const oldBackupsToDelete = allBackups.slice(15).map(b => b.backup_date);
@@ -137,21 +132,22 @@ async function triggerAutoSave() {
         }
     }, 1500);
 }
+
 // ==========================================
-// 5. UI RENDERING & NAVIGATION
+// 5. UI RENDERING & NAVIGATION (WITH SMART HIDE)
 // ==========================================
 function generateId() { return Math.random().toString(36).substr(2, 9); }
 
 function renderSidebar() {
     const list = document.getElementById('bookList');
     list.innerHTML = '';
-    
+
     (appData.categories || []).forEach(category => {
         const catDiv = document.createElement('div');
         catDiv.className = `list-item ${currentCategoryId === category.id && !currentBookId ? 'active' : ''}`;
         catDiv.style.backgroundColor = "#eef2ff";
         catDiv.style.borderBottom = "1px solid #ccc";
-        
+
         const catActions = isUnlocked ? `<div class="actions">
             <i class="fas fa-plus" onclick="addBookTo('${category.id}', event)" title="Add Book"></i>
             <i class="fas fa-edit" onclick="renameCategory('${category.id}', event)" title="Rename Subject"></i>
@@ -165,18 +161,15 @@ function renderSidebar() {
             const booksContainer = document.createElement('div');
             booksContainer.style.borderLeft = "2px solid #ccc";
             booksContainer.style.marginLeft = "10px";
-            
+
             (category.books || []).forEach(book => {
-                
-                // 🔴 SMART HIDE FEATURE: अगर कोई किताब सिलेक्टेड है, तो सिर्फ उसी को दिखाओ, बाकी को छिपा दो!
-                if (currentBookId !== null && currentBookId !== book.id) {
-                    return; // इसे लिस्ट में मत जोड़ो ताकि स्क्रीन साफ रहे
-                }
+                // SMART HIDE: Baaki books ko chhupao agar koi dusri book selected hai
+                if (currentBookId !== null && currentBookId !== book.id) return;
 
                 const bookDiv = document.createElement('div');
                 bookDiv.className = `list-item ${currentBookId === book.id && !currentChapterId ? 'active' : ''}`;
                 bookDiv.style.paddingLeft = "10px";
-                
+
                 const bookActions = isUnlocked ? `<div class="actions">
                     <i class="fas fa-plus" onclick="addChapterTo('${category.id}', '${book.id}', event)" title="Add Chapter"></i>
                     <i class="fas fa-edit" onclick="renameBook('${category.id}', '${book.id}', event)" title="Rename Book"></i>
@@ -190,12 +183,12 @@ function renderSidebar() {
                     const chapContainer = document.createElement('div');
                     chapContainer.style.borderLeft = "2px solid #4361ee";
                     chapContainer.style.marginLeft = "15px";
-                    
+
                     (book.chapters || []).forEach(chapter => {
                         const chapDiv = document.createElement('div');
                         chapDiv.className = `list-item ${currentChapterId === chapter.id ? 'active' : ''}`;
                         chapDiv.style.paddingLeft = "10px";
-                        
+
                         const chapActions = isUnlocked ? `<div class="actions">
                             <i class="fas fa-edit" onclick="renameChapter('${category.id}', '${book.id}', '${chapter.id}', event)" title="Rename Chapter"></i>
                             <i class="fas fa-trash" onclick="deleteChapter('${category.id}', '${book.id}', '${chapter.id}', event)"></i>
@@ -232,7 +225,7 @@ function addBookTo(catId, e) {
     if (!title) return;
     if(!cat.books) cat.books = [];
     cat.books.push({ id: generateId(), title: title, chapters: [] });
-    triggerAutoSave(); openCategory(catId); 
+    triggerAutoSave(); openCategory(catId);
 }
 
 function addChapterTo(catId, bId, e) {
@@ -243,10 +236,10 @@ function addChapterTo(catId, bId, e) {
     let title = prompt("Enter Chapter Name:");
     if (title === null) return;
     if (title.trim() === "") title = "Chapter " + ((book.chapters || []).length + 1);
-    
+
     if(!book.chapters) book.chapters = [];
     book.chapters.push({ id: generateId(), title: title, content: "" });
-    triggerAutoSave(); openBook(catId, bId); 
+    triggerAutoSave(); openBook(catId, bId);
 }
 
 // --- RENAMING DATA ---
@@ -300,7 +293,7 @@ function openCategory(catId) {
     let html = `<div class="view-header"><h2>Books in ${cat.title}</h2>
         ${isUnlocked ? `<button class="btn-add" onclick="addBookTo('${cat.id}')"><i class="fas fa-plus"></i> Add Book</button>` : ``}
     </div><div class="grid-list">`;
-    
+
     if (!cat.books || cat.books.length === 0) html += `<p>No books yet in this subject.</p>`;
     (cat.books || []).forEach(b => {
         html += `<div class="grid-card" onclick="openBook('${cat.id}', '${b.id}')">
@@ -326,7 +319,7 @@ function openBook(catId, bookId) {
         <h2>Chapters in ${book.title}</h2>
         ${isUnlocked ? `<button class="btn-add" onclick="addChapterTo('${cat.id}', '${book.id}')"><i class="fas fa-plus"></i> Add Chapter</button>` : ``}
     </div><div class="grid-list">`;
-    
+
     if (!book.chapters || book.chapters.length === 0) html += `<p>No chapters yet.</p>`;
     (book.chapters || []).forEach(ch => {
         html += `<div class="grid-card" onclick="openChapter('${cat.id}', '${book.id}', '${ch.id}')">
@@ -347,7 +340,7 @@ function openChapter(catId, bookId, chapterId) {
     const cat = appData.categories.find(c => c.id === catId);
     const book = cat.books.find(b => b.id === bookId);
     const chapter = book.chapters.find(c => c.id === chapterId);
-    
+
     updateBreadcrumb(`📁 ${cat.title} > 📘 ${book.title} > 📑 ${chapter.title}`);
     renderSidebar();
 
@@ -367,14 +360,14 @@ function openChapter(catId, bookId, chapterId) {
         <div id="editor-container" style="${isUnlocked ? '' : 'border-radius:8px; border-top:1px solid #ccc;'}"></div>
     `;
 
-    editor = new Quill('#editor-container', { 
-        modules: { toolbar: isUnlocked ? '#toolbar-container' : false }, 
+    editor = new Quill('#editor-container', {
+        modules: { toolbar: isUnlocked ? '#toolbar-container' : false },
         theme: 'snow',
-        readOnly: !isUnlocked // 👈 लॉक होने पर टाइप नहीं हो सकेगा!
+        readOnly: !isUnlocked
     });
-    
+
     editor.clipboard.dangerouslyPasteHTML(chapter.content || '');
-    
+
     if (isUnlocked) {
         editor.on('text-change', () => { chapter.content = editor.root.innerHTML; triggerAutoSave(); });
     }
@@ -388,10 +381,10 @@ function fixPDFText() {
     const range = editor.getSelection();
     if (range && range.length > 0) {
         let text = editor.getText(range.index, range.length);
-        text = text.replace(/\n\n/g, '||PARAGRAPH||'); 
-        text = text.replace(/\n/g, ' '); 
-        text = text.replace(/\|\|PARAGRAPH\|\|/g, '\n\n'); 
-        text = text.replace(/ +/g, ' '); 
+        text = text.replace(/\n\n/g, '||PARAGRAPH||');
+        text = text.replace(/\n/g, ' ');
+        text = text.replace(/\|\|PARAGRAPH\|\|/g, '\n\n');
+        text = text.replace(/ +/g, ' ');
         editor.deleteText(range.index, range.length);
         editor.insertText(range.index, text);
         editor.setSelection(range.index, text.length);
@@ -449,7 +442,7 @@ function handleSearch() {
     (appData.categories || []).forEach(cat => {
         (cat.books || []).forEach(book => {
             (book.chapters || []).forEach(chapter => {
-                const contentText = (chapter.content || "").replace(/<[^>]+>/g, '').toLowerCase(); 
+                const contentText = (chapter.content || "").replace(/<[^>]+>/g, '').toLowerCase();
                 if (chapter.title.toLowerCase().includes(query) || contentText.includes(query) || book.title.toLowerCase().includes(query) || cat.title.toLowerCase().includes(query)) {
                     found = true;
                     resultsHTML += `
@@ -511,7 +504,7 @@ function exportBackup() {
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", "MyBookNotes_Backup.json");
-    document.body.appendChild(downloadAnchorNode); 
+    document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click(); downloadAnchorNode.remove();
 }
 
