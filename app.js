@@ -65,23 +65,46 @@ window.onload = async () => {
     renderSidebar();
 };
 
-async function loadDataFromCloud() {
-    try {
-        const { data, error } = await supabaseClient.from('notes_db').select('data').eq('id', 1).single();
-        if (error && error.code !== 'PGRST116') throw error;
+// 🔧 FIX: यह function अब slow/flaky network पर 1 बार fail होते ही "Offline Mode"
+// पर नहीं गिरता — पहले कई बार (backoff के साथ) retry करता है, तभी local backup
+// पर fallback करता है। इसी वजह से पहले बार-बार refresh करना पड़ता था।
+async function loadDataFromCloud(maxRetries = 4) {
+    document.getElementById('saveStatus').innerText = "☁️ Loading...";
 
-        if (data && data.data) {
-            appData = data.data;
-            migrateOldData();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('notes_db')
+                .select('data')
+                .eq('id', 1)
+                .single();
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            if (data && data.data) {
+                appData = data.data;
+                migrateOldData();
+            }
+            document.getElementById('saveStatus').innerText = "☁️ Synced";
+            return; // ✅ success — done, no fallback needed
+        } catch (err) {
+            console.log(`Cloud load attempt ${attempt}/${maxRetries} failed:`, err);
+
+            if (attempt < maxRetries) {
+                document.getElementById('saveStatus').innerText =
+                    `⏳ Slow connection, retrying (${attempt}/${maxRetries - 1})...`;
+                // Backoff: 0.8s, 1.6s, 2.4s ... थोड़ा बढ़ते हुए wait
+                await new Promise(res => setTimeout(res, attempt * 800));
+            }
         }
-        document.getElementById('saveStatus').innerText = "☁️ Synced";
-    } catch (err) {
-        document.getElementById('saveStatus').innerText = "⚠️ Offline Mode";
-        const local = localStorage.getItem('bookNotesBackup');
-        if (local) {
-            appData = JSON.parse(local);
-            migrateOldData();
-        }
+    }
+
+    // सारे retries fail हो गए, तभी offline/local backup दिखाओ
+    document.getElementById('saveStatus').innerText = "⚠️ Offline Mode";
+    const local = localStorage.getItem('bookNotesBackup');
+    if (local) {
+        appData = JSON.parse(local);
+        migrateOldData();
     }
 }
 
@@ -108,7 +131,7 @@ async function triggerAutoSave() {
         try {
             appData.lastUpdated = new Date().toISOString();
             
-            // 1. ब्राउज़र का लोकल स्टोरेज (इसे ट्राई-कैच में डाला है ताकि फुल होने पर ऐप क्रैश न हो)
+            // 1. ब्राउज़र का लोकल स्टोरेज (इसे ट्राई-कैच में डाला है ताकि फुल होने पर ऐप क्रैश न हो)
             try {
                 localStorage.setItem('bookNotesBackup', JSON.stringify(appData));
             } catch (localErr) {
