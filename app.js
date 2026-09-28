@@ -674,3 +674,5 @@ function importBackup(event) {
     };
     reader.readAsText(file);
 }
+
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
